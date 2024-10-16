@@ -28,7 +28,7 @@ class Rater:
                 {"role": "system", "content": "You are an assistant to determine political bias of websites."},
                 {
                     "role": "user",
-                    "content": "carefully evaluate that whether this content political is biased?"
+                    "content": "carefully evaluate that whether this content is political biased?"
                                "Don't consider the source of the news. pretend you don't know about it."
                                "output -2~2 from far left to far right political biased, 0 for non-biased"
                                "Please output in this format, strictly:"
@@ -72,6 +72,14 @@ class Rater:
         return message.content[0].text
 
 
+def identify_source(url):
+    if "www.cnn.com" in url:
+        return 'cnn'
+    elif "www.foxnews.com" in url:
+        return 'foxnews'
+    elif "abcnews.go.com" in url:
+        return "abcnews"
+
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
@@ -92,8 +100,13 @@ def scrape_page():
 
         # The article content is usually within <div> or <section> tags with specific classes.
         # For CNN, let's focus on <div> with class "l-container" or individual <p> tags for paragraphs.
-        paragraphs = soup.find_all('div', class_='article__content-container')
-
+        source = identify_source(url)
+        if source == 'cnn':
+            paragraphs = soup.find_all('div', class_='article__content-container')
+        elif source == 'foxnews':
+            paragraphs = soup.find_all('div', class_='article-body')
+        elif source == 'abcnews':
+            paragraphs = soup.find_all('p')
         # Collect and join all paragraphs
         article_text = "\n".join([para.get_text(strip=True) for para in paragraphs])
         rater = Rater()
