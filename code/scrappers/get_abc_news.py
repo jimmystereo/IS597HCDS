@@ -51,6 +51,7 @@ def scrape_abc():
 
             # Append the article title, link, and content
             news_list.append({
+                'source': 'abcnews',
                 'title': headline,
                 'link': full_link,
                 'content': article_content

@@ -48,6 +48,7 @@ def scrape_fox_news():
                     article_content = get_article_content(full_link)
                     # Append the article title, link, and content
                     news_list.append({
+                        'source': 'foxnews',
                         'title': headline,
                         'link': full_link,
                         'content': article_content

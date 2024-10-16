@@ -47,6 +47,7 @@ def scrape_cnn():
 
             # Append the article title, link, and content
             news_list.append({
+                'source': 'cnn',
                 'title': headline,
                 'link': full_link,
                 'content': article_content
