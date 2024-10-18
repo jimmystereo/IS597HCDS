@@ -1,8 +1,10 @@
 from openai import OpenAI
 import anthropic
+import google.generativeai as genai
+
 import os
 import json
-from keys import OPENAIKEY, ANTHROPIC_API_KEY
+from keys import OPENAIKEY, ANTHROPIC_API_KEY, GEMINI_KEY
 os.environ["OPENAI_API_KEY"] = OPENAIKEY
 os.environ["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
 os.chdir("./models")
@@ -17,6 +19,8 @@ class Rater:
 
         elif name == 'claude':
             self.rate = self.rate_claude
+        elif name == 'gemini':
+            self.rate = self.rate_gemini
     def rate_gpt(self, news_content):
         client = OpenAI()
         completion = client.chat.completions.create(
@@ -67,7 +71,22 @@ class Rater:
             ]
         )
         return message.content[0].text
+    def rate_gemini(self, news_content):
+        genai.configure(api_key=GEMINI_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content("carefully evaluate that whether this content political is biased?"
+                                          "Don't consider the source of the news. pretend you don't know about it."
+                                          "output -2~2 from far left to far right political biased, 0 for non-biased"
+                                          "Please output in this format, strictly:"
+                                          "Score: score"
+                                          "Reasons: (in short bullet point)"
+                                          f"""Here's the actual content: {news_content}""")
+        return response
 
+rater = Rater()
+rater.set_rater('gemini')
+r = rater.rate(fox[2]['content'])
+r.text
 def rate_all(model_name, data):
     rater = Rater()
     rater.set_rater(model_name)
@@ -89,6 +108,9 @@ with open('../news/foxnews.json', 'r') as f:
     fox = json.load(f)
 with open('../news/abcnews.json', 'r') as f:
     abc = json.load(f)
+
+test = rate_all('gemini', cnn)
+
 cnn_rated = rate_all('gpt', cnn) + rate_all('claude', cnn)
 abc_rated = rate_all('gpt', abc) + rate_all('claude', abc)
 fox_rated = rate_all('gpt', fox) + rate_all('claude', fox)

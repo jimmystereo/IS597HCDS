@@ -1,6 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
+import psycopg2
 import json
+from datetime import datetime
+from keys import POSTGRES_PASSWORD, POSTGRES_HOST
 
 # Function to get article content from an ABC News article page
 def get_article_content(url):
@@ -9,7 +12,6 @@ def get_article_content(url):
         soup = BeautifulSoup(response.content, 'html.parser')
 
         # The article content might be within <div> or <section> tags with specific classes.
-        # For ABC News, you may need to adjust the tag and class based on the HTML structure.
         paragraphs = soup.find_all('p')
 
         # Collect and join all paragraphs
@@ -23,38 +25,32 @@ def get_article_content(url):
 def scrape_abc():
     url = "https://abcnews.go.com/elections"  # The ABC News Elections page
 
-    # Send a GET request to fetch the webpage content
     response = requests.get(url)
-
     if response.status_code == 200:
         soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Find all headlines. Adjust the tag and class to match the site's structure
         articles = soup.find_all('div', class_='ContentRoll__Headline')
 
         news_list = []
         for article in articles:
-            # Get the headline text and link
             article_inner = article.find('a', class_='AnchorLink')
             headline = article_inner.get_text(strip=True)
             link = article_inner['href']
             if link == '/':
                 continue
-            full_link = "https://abcnews.go.com" + link if link.startswith('/') else link  # Construct full URL
+            full_link = "https://abcnews.go.com" + link if link.startswith('/') else link
 
-            # Skip video or other non-article links if necessary
             if '/video/' in full_link or '/Video' in full_link or 'playlists' in full_link:
                 continue
 
-            # Get the content of the article
             article_content = get_article_content(full_link)
 
-            # Append the article title, link, and content
             news_list.append({
                 'source': 'abcnews',
                 'title': headline,
                 'link': full_link,
-                'content': article_content
+                'content': article_content,
+                'collect_date': datetime.now().strftime('%Y-%m-%d')  # Capture the collection date
             })
 
         return news_list
@@ -62,16 +58,41 @@ def scrape_abc():
         print(f"Failed to retrieve ABC News page. Status code: {response.status_code}")
         return []
 
-# Run the ABC News scraper
-news_data = scrape_abc()
+# Function to store the news data into the PostgreSQL database
+def store_news_in_db(news_list):
+    try:
+        # Connect to your PostgreSQL database
+        conn = psycopg2.connect(
+            dbname="postgres",  # Replace with your DB name
+            user="postgres",      # Replace with your DB user
+            password=POSTGRES_PASSWORD,  # Replace with your DB password
+            host=POSTGRES_HOST,      # Replace with your DB host (e.g., localhost or IP)
+            port="5432"            # Replace with your DB port (default is 5432)
+        )
+        cur = conn.cursor()
 
-# Print the scraped news articles along with their content
-for idx, news in enumerate(news_data, 1):
-    print(f"{idx}. {news['title']}")
-    print(f"   Link: {news['link']}")
-    print(f"   Content: {news['content'][:300]}...")  # Print the first 300 characters of the content
-    print("\n")
+        # Insert each news article into the News table
+        for news in news_list:
+            cur.execute("""
+                INSERT INTO News (Link, Title, Content, Source, CollectDate)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (Link) DO NOTHING;
+            """, (news['link'], news['title'], news['content'], news['source'], news['collect_date']))
+
+        conn.commit()  # Commit the transaction
+        cur.close()
+        conn.close()
+        print("News data stored successfully in the database.")
+
+    except Exception as e:
+        print(f"Failed to store news in the database: {e}")
+
+# Run the ABC News scraper and store the data
+news_data = scrape_abc()
+store_news_in_db(news_data)
 
 # Convert and write JSON object to file
 with open("../news/abcnews.json", "w") as outfile:
     json.dump(news_data, outfile)
+
+print("News data stored successfully in the JSON file.")
