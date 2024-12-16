@@ -1,13 +1,8 @@
-from openai import OpenAI
 import anthropic
 import os
 import json
-from keys import OPENAIKEY, ANTHROPIC_API_KEY
-os.environ["OPENAI_API_KEY"] = OPENAIKEY
+from keys import ANTHROPIC_API_KEY
 os.environ["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
-os.chdir("./models")
-
-client = OpenAI()
 
 news_content = """
 Former Illinois Gov. Rod Blagojevich joins 'America's Newsroom' to discuss Chicago residents' frustration at local Democratic officials for prioritizing spending on migrants and President Biden's pardon for his son Hunter.
@@ -47,22 +42,27 @@ Please analyze the news content below and give a political bias score based on t
 Here is the news content:
 \"\"\"{news_content}\"\"\"
 
-**Please evaluate the content and output only the reasons and score. Do not repeat the input text.**
+**Please evaluate the content and output only the score following the reasons.**
 
 """
-completion = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                # {"role": "system", "content": "You are an assistant to determine political bias of websites."},
+client = anthropic.Anthropic()
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=1000,
+    temperature=0,
+    # system="You are an assistant to determine political bias of websites.",
+    messages=[
+        {
+            "role": "user",
+            "content": [
                 {
-                    "role": "user",
-                    "content": prompt
-
+                    "type": "text",
+                    "text": prompt
                 }
-            ],
-            temperature=0,  # Set to 0 for deterministic output
-            top_p=1,        # Default value
-            n=1
-        )
-# compute entropy
-print(completion.choices[0].message.dict()['content'])
+            ]
+        }
+    ]
+)
+print(message.content[0].text)
+
+

@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "My Chrome Extension",
+  "name": "Political News Bias Detector",
   "version": "1.0",
-  "description": "A simple Chrome extension that communicates with a Python backend.",
-  "permissions": ["storage", "activeTab"],
+  "description": "An extension that evaluate the political bias in a news article using LLMs",
+  "permissions": ["activeTab"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

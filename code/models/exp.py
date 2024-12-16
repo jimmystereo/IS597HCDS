@@ -1,14 +1,12 @@
-from openai import OpenAI
 import anthropic
+import pandas as pd
+from openai import OpenAI
+import google.generativeai as genai
 import os
 import json
 from keys import OPENAIKEY, ANTHROPIC_API_KEY
-os.environ["OPENAI_API_KEY"] = OPENAIKEY
-os.environ["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
-os.chdir("./models")
-
-client = OpenAI()
-
+import re
+import pandas as pd
 news_content = """
 Former Illinois Gov. Rod Blagojevich joins 'America's Newsroom' to discuss Chicago residents' frustration at local Democratic officials for prioritizing spending on migrants and President Biden's pardon for his son Hunter.
 Former Illinois Gov. Rod Blagojevich, a Democrat whose 14-year corruption sentence was commuted by former President Trump, called out President Biden for lying to the American people about his intentions of pardoning his son, Hunter.
@@ -31,26 +29,66 @@ Fox News' Alexander Hall, Stephen Sorace and Brie Stimson contributed to this re
 CLICK TO GET THE FOX NEWS APP
 Bailee Hill is an associate editor with Fox News Digital. Story ideas can be sent to bailee.hill@fox.com
 """
-prompt = f"""
-You are an AI trained to evaluate political bias in news articles. 
 
-Please analyze the news content below and give a political bias score based on the content. Do **NOT** consider the source or any other context, only the content itself.
 
-1. **Explanation**: explain the reasoning in bullet points. Be **brief**, **objective**, and **logical** in your explanation.
+## Initilize Models
+# GPT
+os.environ["OPENAI_API_KEY"] = OPENAIKEY
+gpt = OpenAI()
 
-1. **Bias Score**: Based on the explanation, provide a score between -2 and 2:
-   - -2 = Far-left bias
-   - 2 = Far-right bias
-   - 0 = Neutral (no bias)
-   
+# Claude
+os.environ["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
+claude = anthropic.Anthropic()
 
-Here is the news content:
-\"\"\"{news_content}\"\"\"
+# Gemini
+genai.configure(api_key="AIzaSyA6bk5BRHQJHnjruJC2CpULPJr9tE3wQg0")
+gemini = genai.GenerativeModel("gemini-1.5-flash")
 
-**Please evaluate the content and output only the reasons and score. Do not repeat the input text.**
 
-"""
-completion = client.chat.completions.create(
+
+def rate(news_content, model, temperature):
+    prompt = f"""
+    You are an AI trained to evaluate political bias in news articles. 
+    
+    Please analyze the news content below and give a political bias score based on the content. Do not consider the source or any other context, only the content itself.
+    
+    1. Explanation: explain the reasoning in bullet points. Be objective, and logical in your explanation.
+    
+    2. Bias Score: Based on the explanation, provide a score between -2 and 2:
+       - -2 = Far-left bias
+       - 2 = Far-right bias
+       - 0 = Neutral (no bias)
+       Please wrap the score between !$*_& sign like this !$*_&score!$*_&
+       
+    
+    Here is the news content:
+    \"\"\"{news_content}\"\"\"
+    
+    **Please evaluate the content and output only the score following the reasons.**
+    
+    """
+    if model == 'claude':
+        message = claude.messages.create(
+            model="claude-3-5-sonnet-20240620",
+            max_tokens=1000,
+            temperature=temperature,
+            # system="You are an assistant to determine political bias of websites.",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        )
+        return prompt,message.content[0].text
+    elif model == 'gpt':
+
+        completion = gpt.chat.completions.create(
             model="gpt-4o",
             messages=[
                 # {"role": "system", "content": "You are an assistant to determine political bias of websites."},
@@ -60,9 +98,60 @@ completion = client.chat.completions.create(
 
                 }
             ],
-            temperature=0,  # Set to 0 for deterministic output
+            temperature=temperature,  # Set to 0 for deterministic output
             top_p=1,        # Default value
             n=1
         )
-# compute entropy
-print(completion.choices[0].message.dict()['content'])
+        # compute entropy
+        return prompt, completion.choices[0].message.dict()['content']
+
+    elif model == 'gemini':
+
+        response = gemini.generate_content(prompt,
+                                          generation_config=genai.types.GenerationConfig(
+                                              # Only one candidate for now.
+                                              # candidate_count=1,
+                                              # stop_sequences=["x"],
+                                              # max_output_tokens=20,
+                                              temperature=temperature,
+                                          ),
+                                          )
+        return prompt, response.text
+
+
+
+
+def parse_score(result):
+    try:
+        bias_score = float(result.split('!$*_&')[-2])
+        return bias_score
+    except:
+        return -999
+
+result_df = pd.DataFrame()
+# model = 'gemini'
+temperature = 0
+df = pd.read_csv('exp_dataset.csv', sep = '\t')
+df = pd.read_csv('cnn_addon.csv', sep = '\t')
+c = 0
+for j in range(5):
+    for i in range(df.shape[0]):
+            for model in ['claude', 'gpt', 'gemini']:
+                c+=1
+                # if c<= 1372+426+167:
+                #     continue
+                news_content = df.loc[i,'content']
+                prompt, result = rate(news_content, model, temperature)
+                print(i, df.shape[0], model)
+                bias_score = parse_score(result)
+                output_dict = df.loc[i,:].to_dict()
+                output_dict['model'] = model
+                output_dict['temperature'] = temperature
+                output_dict['prompt'] = prompt
+                output_dict['result'] = result
+                output_dict['score'] = bias_score
+                output_df = pd.DataFrame(output_dict, index = [0])
+                result_df = pd.concat([result_df, output_df], ignore_index=True)
+result_df.to_csv('h1_result_5.csv', encoding = 'utf-8-sig', sep = '\t', index = False)
+# result_df.shape
+# 1372+426+167+285

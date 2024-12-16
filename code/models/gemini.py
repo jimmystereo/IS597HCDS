@@ -1,13 +1,8 @@
-from openai import OpenAI
-import anthropic
-import os
-import json
-from keys import OPENAIKEY, ANTHROPIC_API_KEY
-os.environ["OPENAI_API_KEY"] = OPENAIKEY
-os.environ["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
-os.chdir("./models")
+import google.generativeai as genai
 
-client = OpenAI()
+
+genai.configure(api_key="AIzaSyA6bk5BRHQJHnjruJC2CpULPJr9tE3wQg0")
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 news_content = """
 Former Illinois Gov. Rod Blagojevich joins 'America's Newsroom' to discuss Chicago residents' frustration at local Democratic officials for prioritizing spending on migrants and President Biden's pardon for his son Hunter.
@@ -50,19 +45,14 @@ Here is the news content:
 **Please evaluate the content and output only the reasons and score. Do not repeat the input text.**
 
 """
-completion = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                # {"role": "system", "content": "You are an assistant to determine political bias of websites."},
-                {
-                    "role": "user",
-                    "content": prompt
 
-                }
-            ],
-            temperature=0,  # Set to 0 for deterministic output
-            top_p=1,        # Default value
-            n=1
-        )
-# compute entropy
-print(completion.choices[0].message.dict()['content'])
+response = model.generate_content(prompt,
+    generation_config=genai.types.GenerationConfig(
+    # Only one candidate for now.
+    # candidate_count=1,
+    # stop_sequences=["x"],
+    # max_output_tokens=20,
+    temperature=0,
+),
+)
+print(response.text)
