@@ -1,9 +1,9 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from huggingface_hub import login
-
+from keys import HUGGING_FACE_KEY
 # Log in with your Hugging Face API key
-login("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")
+login(HUGGING_FACE_KEY)
 
 # Load LLaMA model and tokenizer
 model_name = "meta-llama/Llama-3.2-1B"  # Change based on the model you're using

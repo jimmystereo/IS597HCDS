@@ -1,7 +1,7 @@
 import google.generativeai as genai
+from keys import *
 
-
-genai.configure(api_key="AIzaSyA6bk5BRHQJHnjruJC2CpULPJr9tE3wQg0")
+genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 news_content = """
